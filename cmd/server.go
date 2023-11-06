@@ -2,17 +2,18 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/ml444/gctl/config"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/ml444/gctl/config"
 
 	"github.com/ml444/gctl/util"
 
-	"github.com/ml444/gctl/parser"
 	log "github.com/ml444/glog"
 	"github.com/spf13/cobra"
+
+	"github.com/ml444/gctl/parser"
 )
 
 var serverCmd = &cobra.Command{
@@ -33,7 +34,7 @@ var serverCmd = &cobra.Command{
 		}
 
 		serviceName := getServiceName(protoPath)
-		protoPath = config.GetTargetProtoAbsPath(serviceGroup, protoPath)
+		//protoPath = config.GetTargetProtoAbsPath(serviceGroup, protoPath)
 		//baseDir := config.GlobalConfig.TargetRootPath
 		onceFiles := config.GlobalConfig.OnceFiles
 		onceFileMap := map[string]bool{}
@@ -62,14 +63,13 @@ var serverCmd = &cobra.Command{
 				pd.Ports = ports
 			}
 		}
-		clientTempDir := config.GetTempClientAbsDir()
-		protoTempPath := config.GetTempProtoAbsPath()
-		serverTempDir := config.GetTempServerAbsDir()
+		//protoTempPath := config.GetTempProtoAbsPath()
+		serverTempDir := "templates/server"
 		// serverRootDir := filepath.Join(baseDir, fmt.Sprintf("%sServer", strings.Split(pd.Options["go_package"], ";")[0]))
-		serverRootDir := config.GetTargetServerAbsDir(serviceGroup, serviceName)
+		serverRootDir, _ := os.Getwd()
 		log.Debug("server root dir:", serverRootDir)
 		log.Debug("template root dir:", serverTempDir)
-		err = filepath.Walk(serverTempDir, func(path string, info fs.FileInfo, err error) error {
+		err = fs.WalkDir(TemplateServer, serverTempDir, func(path string, info fs.DirEntry, err error) error {
 			if err != nil {
 				log.Errorf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
 				return err
@@ -78,27 +78,18 @@ var serverCmd = &cobra.Command{
 				log.Debugf("skipping a dir without errors: %+v \n", info.Name())
 				return nil
 			}
-			if path == protoTempPath {
-				log.Debugf("skipping proto file: %+v \n", path)
-				return nil
-			}
-			if dir, _ := filepath.Split(path); strings.TrimSuffix(dir, string(os.PathSeparator)) == clientTempDir {
-				log.Debugf("skipping client file: %+v \n", path)
-				return nil
-			} else {
-				log.Infof("generating dir: %+v \n", dir)
-			}
 
 			fileName := strings.TrimSuffix(info.Name(), config.GetTempFilesFormatSuffix())
 			parentPath := strings.TrimSuffix(strings.TrimPrefix(path, serverTempDir), info.Name())
 			targetFile := serverRootDir + parentPath + fileName
+			targetFile = strings.ReplaceAll(targetFile, config.ServiceNameVar, serviceName)
 			if util.IsFileExist(targetFile) && onceFileMap[fileName] {
 				log.Printf("[%s] file is exist in this directory, skip it", targetFile)
 				return nil
 			}
 
 			log.Infof("generating file: %s", targetFile)
-			err = parser.GenerateTemplate(targetFile, path, pd)
+			err = parser.GenerateTemplate(targetFile, TemplateServer, path, pd)
 			if err != nil {
 				return err
 			}

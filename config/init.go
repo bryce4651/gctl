@@ -1,14 +1,11 @@
 package config
 
 import (
-	"bytes"
-	"errors"
+	"embed"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -60,7 +57,7 @@ type Config struct {
 	ProtoCentralRepoPath string
 }
 
-func InitGlobalVar() error {
+func InitGlobalVar(tfs embed.FS) error {
 	var err error
 
 	// read config file
@@ -89,41 +86,45 @@ func InitGlobalVar() error {
 	}
 	GlobalConfig.TargetRootPath = viper.GetString(KeyTargetRootPath)
 	GlobalConfig.TmplRootDir = viper.GetString(KeyTemplateRootDir)
-	if GlobalConfig.TmplRootDir == "" {
-		cmd := exec.Command("bash", "-c", "cd "+GlobalConfig.TargetRootPath+" && git clone https://github.com/ml444/gctl-templates.git")
-		log.Infof("exec: %s", cmd.String())
-		var outBuf, errBuf bytes.Buffer
-		cmd.Stdout = &outBuf
-		cmd.Stderr = &errBuf
-		err = cmd.Run()
-		if err != nil {
-			log.Infof("Err: %s \nStdout: %s \n Stderr: %s", err, outBuf.String(), errBuf.String())
-			return err
-		}
-		log.Infof(" %s", errBuf.String())
-		GlobalConfig.TmplRootDir = filepath.Join(GlobalConfig.TargetRootPath, defaultTemplatesName, "separation_templates")
-		GlobalConfig.AllProtoPathList = append(GlobalConfig.AllProtoPathList, filepath.Join(GlobalConfig.TargetRootPath, defaultTemplatesName, "protofiles"))
-		//fmt.Println(fmt.Sprintf("err: must be set: 'export GCTL_%s=/your/path'", KeyTemplateRootDir))
-		//return errors.New(fmt.Sprintf("missing environment variable: GCTL_%s", KeyTemplateRootDir))
-	} else {
-		if strings.Contains(GlobalConfig.TmplRootDir, defaultTemplatesName) {
-			sList := strings.Split(GlobalConfig.TmplRootDir, defaultTemplatesName)
-			baseDir := strings.TrimSuffix(sList[0], string(os.PathSeparator))
-			GlobalConfig.AllProtoPathList = append(GlobalConfig.AllProtoPathList, filepath.Join(baseDir, defaultTemplatesName, "protofiles"))
-		}
-	}
+	//if GlobalConfig.TmplRootDir == "" {
+	//	cmd := exec.Command("bash", "-c", "cd "+GlobalConfig.TargetRootPath+" && git clone https://github.com/ml444/gctl-templates.git")
+	//	log.Infof("exec: %s", cmd.String())
+	//	var outBuf, errBuf bytes.Buffer
+	//	cmd.Stdout = &outBuf
+	//	cmd.Stderr = &errBuf
+	//	err = cmd.Run()
+	//	if err != nil {
+	//		log.Infof("Err: %s \nStdout: %s \n Stderr: %s", err, outBuf.String(), errBuf.String())
+	//		return err
+	//	}
+	//	log.Infof(" %s", errBuf.String())
+	//	GlobalConfig.TmplRootDir = filepath.Join(GlobalConfig.TargetRootPath, defaultTemplatesName, "separation_templates")
+	//	GlobalConfig.AllProtoPathList = append(GlobalConfig.AllProtoPathList, filepath.Join(GlobalConfig.TargetRootPath, defaultTemplatesName, "protofiles"))
+	//	//fmt.Println(fmt.Sprintf("err: must be set: 'export GCTL_%s=/your/path'", KeyTemplateRootDir))
+	//	//return errors.New(fmt.Sprintf("missing environment variable: GCTL_%s", KeyTemplateRootDir))
+	//} else {
+	//	if strings.Contains(GlobalConfig.TmplRootDir, defaultTemplatesName) {
+	//		sList := strings.Split(GlobalConfig.TmplRootDir, defaultTemplatesName)
+	//		baseDir := strings.TrimSuffix(sList[0], string(os.PathSeparator))
+	//		GlobalConfig.AllProtoPathList = append(GlobalConfig.AllProtoPathList, filepath.Join(baseDir, defaultTemplatesName, "protofiles"))
+	//	}
+	//}
 
-	err = InitTmplFilesConf()
+	//err = InitTmplFilesConf()
+	//if err != nil {
+	//	log.Errorf("err: %v", err)
+	//	return err
+	//}
+	err = InitTmplConfigYamlFromEmbed(tfs)
 	if err != nil {
-		log.Errorf("err: %v", err)
+		log.Error(err)
 		return err
 	}
-
-	GlobalConfig.GoModulePrefix = viper.GetString(KeyModulePrefix)
-	if GlobalConfig.GoModulePrefix == "" {
-		fmt.Println(fmt.Sprintf("err: must be set: 'export GCTL_%s=your_repository_host'", KeyModulePrefix))
-		return errors.New(fmt.Sprintf("missing environment variable: GCTL_%s", KeyModulePrefix))
-	}
+	//GlobalConfig.GoModulePrefix = viper.GetString(KeyModulePrefix)
+	//if GlobalConfig.GoModulePrefix == "" {
+	//	fmt.Println(fmt.Sprintf("err: must be set: 'export GCTL_%s=your_repository_host'", KeyModulePrefix))
+	//	return errors.New(fmt.Sprintf("missing environment variable: GCTL_%s", KeyModulePrefix))
+	//}
 	GlobalConfig.OnceFiles = viper.GetStringSlice(KeyOnceFiles)
 	return nil
 }

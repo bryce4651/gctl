@@ -2,12 +2,14 @@ package parser
 
 import (
 	"bytes"
+	"embed"
 	"path/filepath"
 	"strings"
 	"text/template"
 
-	"github.com/ml444/gctl/util"
 	log "github.com/ml444/glog"
+
+	"github.com/ml444/gctl/util"
 )
 
 //func ParseTemplateToFile(pd *ProtoData, basePath, tempDir, tempName string, funcMap template.FuncMap) error {
@@ -30,7 +32,7 @@ var funcMap = template.FuncMap{
 	"GetStatusCodeFromComment": util.GetStatusCodeFromComment,
 }
 
-func GenerateTemplate(fPath string, tempFile string, data interface{}) error {
+func GenerateTemplate(fPath string, tfs embed.FS, tempFile string, data interface{}) error {
 	var err error
 	f, err := util.OpenFile(fPath)
 	if err != nil {
@@ -41,8 +43,8 @@ func GenerateTemplate(fPath string, tempFile string, data interface{}) error {
 	if funcMap != nil {
 		temp.Funcs(funcMap)
 	}
-	// temp, err = temp.ParseFS(tfs, tempFile)
-	temp, err = temp.ParseFiles(tempFile)
+	temp, err = temp.ParseFS(tfs, tempFile)
+	//temp, err = temp.ParseFiles(tempFile)
 	if err != nil {
 		log.Error(err)
 		return err

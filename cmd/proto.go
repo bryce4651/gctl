@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"strings"
-	
+
 	"github.com/ml444/gctl/config"
 	"github.com/ml444/gctl/util"
 
-	"github.com/ml444/gctl/parser"
 	log "github.com/ml444/glog"
 	"github.com/spf13/cobra"
+
+	"github.com/ml444/gctl/parser"
 )
 
 var protoCmd = &cobra.Command{
@@ -58,6 +59,7 @@ var protoCmd = &cobra.Command{
 
 		err := parser.GenerateTemplate(
 			targetFilepath,
+			TemplateProto,
 			config.GetTempProtoAbsPath(),
 			pd,
 		)

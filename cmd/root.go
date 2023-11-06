@@ -1,15 +1,36 @@
 package cmd
 
 import (
-	"github.com/ml444/gctl/config"
-	"github.com/ml444/glog/level"
+	"embed"
 	"os"
 	"time"
+
+	"github.com/ml444/glog/level"
+
+	"github.com/ml444/gctl/config"
 
 	log "github.com/ml444/glog"
 	logConf "github.com/ml444/glog/config"
 	"github.com/spf13/cobra"
 )
+
+//go:embed templates/config.yaml
+var TemplateConfig embed.FS
+
+//go:embed templates/client/*
+var TemplateClient embed.FS
+
+//go:embed templates/server/*
+var TemplateServer embed.FS
+
+//go:embed templates/proto/*
+var TemplateProto embed.FS
+
+//go:embed protos/*
+var ProtoFiles embed.FS
+
+//go:embed exec/*
+var ExecFiles embed.FS
 
 var (
 	debug bool
@@ -53,7 +74,7 @@ func Execute() {
 	var err error
 
 	config.SetDefaults()
-	err = config.InitGlobalVar()
+	err = config.InitGlobalVar(TemplateConfig)
 	if err != nil {
 		println(err.Error())
 		return

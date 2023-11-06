@@ -1,0 +1,48 @@
+package main
+
+import (
+    "git.csautodriver.com/base/gkit/log"
+	"git.csautodriver.com/base/gkit/tracing"
+
+	"{{.ModulePath}}/internal/db"
+	"{{.ModulePath}}/pkg/{{.PackageName}}"
+	"{{.ServerImport}}server/config"
+)
+
+func Init(cfg *config.Config) error {
+	var err error
+
+    // init config
+    err = config.InitConfig()
+    if err != nil {
+        log.Errorf("err: %v", err)
+        return err
+    }
+
+	// setting logger
+	err = log.InitLogger({{.PackageName}}.ClientName, cfg.EnableDebug)
+    if err != nil {
+        log.Errorf("err: %v", err)
+        return err
+    }
+
+	// init db
+	err = db.InitDB(cfg.DbURI, cfg.EnableDebug)
+	if err != nil {
+		log.Errorf("err: %v", err)
+		return err
+	}
+
+	// init tracer
+	err = tracing.InitTracer(cfg.TracerAddr, log.GetLoggerName())
+	if err != nil {
+		log.Errorf("err: %v", err)
+		return err
+	}
+
+
+
+	return nil
+}
+
+

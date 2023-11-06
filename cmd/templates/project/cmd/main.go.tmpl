@@ -1,0 +1,102 @@
+package main
+
+import (
+	"net/http"
+	"net/http/pprof"
+
+	"git.csautodriver.com/base/gkit/errorx"
+	"git.csautodriver.com/base/gkit/log"
+	"git.csautodriver.com/base/gkit/pkg/env"
+	"git.csautodriver.com/base/gkit/transport/grpcx"
+
+	"git.csautodriver.com/ibms/spp/internal/hook"
+	"git.csautodriver.com/ibms/spp/internal/middleware"
+	"{{.ServerImport}}server/app"
+	"{{.ServerImport}}server/config"
+
+	"{{.ClientImport}}"
+)
+
+// Run starts a new http server, gRPC server, and a debug server with the
+// passed config and logger
+func Run(cfg *config.Config) {
+	var err error
+
+	// Mechanical domain.
+	errCh := make(chan error)
+
+	// Interrupt handler.
+	go hook.InterruptHandler(errCh)
+
+	// Debug pprof listener.
+    if cfg.EnableDebug {
+		go func() {
+			log.Info("transport pprof addr", cfg.PprofAddr)
+
+			m := http.NewServeMux()
+			m.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+			m.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+			m.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+			m.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+			m.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+
+			errCh <- http.ListenAndServe(cfg.PprofAddr, m)
+		}()
+	}
+
+	// HTTP transport.
+	if cfg.EnableHTTP {
+		go func() {
+			log.Info("transport HTTP addr", cfg.HTTPAddr)
+			h := app.MakeHTTPHandler()
+			errCh <- http.ListenAndServe(cfg.HTTPAddr, h)
+		}()
+	}
+
+	// gRPC transport.
+	var grpcServer *grpcx.Server
+	if cfg.EnableGRPC {
+		go func() {
+			log.Info("transport gRPC addr", cfg.GRPCAddr)
+			grpcServer = grpcx.NewServer(
+				app.RegisterServerToGRPC,
+				grpcx.Name({{.PackageName}}.ClientName),
+				grpcx.Address(cfg.GRPCAddr),
+				grpcx.UnaryInterceptor(middleware.InterceptorList...),
+				//grpcx.Credentials(insecure.NewCredentials()),
+			)
+			if env.IsLocalEnv() {
+				err = grpcServer.Start()
+				if err != nil {
+					log.Errorf("grpcServer.Start() err: %v", err)
+				}
+			} else {
+				errCh <- grpcServer.Start()
+			}
+
+		}()
+	}
+
+	// Run!
+	err = <-errCh
+	println("exit", err.Error())
+
+	_ = grpcServer.Stop()
+}
+
+func main() {
+	cfg := config.SetConfig(&config.GlobalConfig)
+	errorx.RegisterError({{.PackageName}}.ErrCodeMap, {{.PackageName}}.ErrCode4StatusCodeMap)
+
+    // init
+	err := Init(cfg)
+	if err != nil {
+		println(err.Error())
+		return
+	}
+	// defer something. example: rpc connection\ db connection\ file...
+	defer Defer()
+
+	Run(cfg)
+}
+

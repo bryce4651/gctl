@@ -1,9 +1,10 @@
 package util
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+
+	log "github.com/ml444/glog"
 )
 
 func OpenFile(fPath string) (*os.File, error) {
@@ -21,11 +22,10 @@ func OpenFile(fPath string) (*os.File, error) {
 func IsFileExist(name string) bool {
 	fileInfo, err := os.Stat(name)
 	if err != nil {
-		fmt.Printf("err: %v", err)
 		return os.IsExist(err)
 	}
 	if fileInfo != nil && fileInfo.IsDir() {
-		fmt.Printf("This path '%v' is not a file path.", name)
+		log.Warnf("This path '%v' is not a file path.", name)
 		return false
 	}
 	return true

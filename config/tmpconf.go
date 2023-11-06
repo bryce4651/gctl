@@ -1,9 +1,13 @@
 package config
 
 import (
+	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	log "github.com/ml444/glog"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -32,6 +36,19 @@ type TemplateConfigFile struct {
 	} `yaml:"template"`
 }
 
+func InitTmplConfigYamlFromEmbed(tfs embed.FS) error {
+	yamlFile, err := tfs.ReadFile("templates/config.yaml")
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	err = yaml.Unmarshal(yamlFile, &TmplFilesConf)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
 func InitTmplFilesConf() error {
 	var err error
 	tmplConfPath := filepath.Join(GlobalConfig.TmplRootDir, "config.yaml")

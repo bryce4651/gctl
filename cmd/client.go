@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"go/build"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/ml444/gutil/osx"
@@ -35,15 +36,16 @@ var clientCmd = &cobra.Command{
 		if serviceGroup == "" && config.GlobalConfig.DefaultSvcGroup != "" {
 			serviceGroup = config.GlobalConfig.DefaultSvcGroup
 		}
-		baseDir := config.GlobalConfig.TargetRootPath
+		//baseDir := config.GlobalConfig.TargetRootPath
 		if protoPath == "" {
 			protoPath = args[0]
+			//protoPath = config.GetTargetProtoAbsPath(serviceGroup, protoPath)
 			//protoPath = filepath.Join(baseDir, config.GlobalConfig.GoModulePrefix, fmt.Sprintf("%s.proto", arg))
 		}
-		protoPath = config.GetTargetProtoAbsPath(serviceGroup, protoPath)
-		tmpDir := config.GetTempClientAbsDir()
+		//tmpDir := config.GetTempClientAbsDir()
+		tmpDir := "templates/client"
 		onceFiles := config.GlobalConfig.OnceFiles
-		log.Debug("root location of code generation: ", baseDir)
+		//log.Debug("root location of code generation: ", baseDir)
 		log.Debug("template path of code generation: ", tmpDir)
 		log.Debug("files that are executed only once during initialization:", onceFiles)
 		onceFileMap := map[string]bool{}
@@ -67,17 +69,16 @@ var clientCmd = &cobra.Command{
 			}
 			pd.ModuleId = moduleId
 		}
-		protoTempPath := config.GetTempProtoAbsPath()
-		var clientRootDir string
+		clientRootDir, _ := os.Getwd()
 		if pkgPath := pd.Options["go_package"]; pkgPath != "" {
 			if strings.Contains(pkgPath, ";") {
 				pkgPath = strings.Split(pkgPath, ";")[0]
 			}
-			clientRootDir = config.GetTargetClientAbsDir0(pkgPath)
+			clientRootDir = filepath.Join(clientRootDir, pkgPath)
 		} else {
-			clientRootDir = config.GetTargetClientAbsDir(serviceGroup, serviceName)
+			//clientRootDir = config.GetTargetClientAbsDir(serviceGroup, serviceName)
 		}
-		err = filepath.Walk(tmpDir, func(path string, info fs.FileInfo, err error) error {
+		err = fs.WalkDir(TemplateClient, tmpDir, func(path string, info fs.DirEntry, err error) error {
 			if err != nil {
 				log.Errorf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
 				return err
@@ -86,10 +87,7 @@ var clientCmd = &cobra.Command{
 				log.Warnf("skipping dir: %+v \n", info.Name())
 				return nil
 			}
-			if path == protoTempPath {
-				log.Debugf("skipping proto file: %+v \n", path)
-				return nil
-			}
+			log.Warn(path, info.Name())
 			fileName := strings.TrimSuffix(info.Name(), config.GetTempFilesFormatSuffix())
 			parentPath := strings.TrimRight(strings.TrimPrefix(path, tmpDir), info.Name())
 			targetFile := clientRootDir + parentPath + fileName
@@ -99,14 +97,15 @@ var clientCmd = &cobra.Command{
 			}
 
 			log.Infof("generating file: %s \n", targetFile)
-			err = parser.GenerateTemplate(targetFile, path, pd)
+			err = parser.GenerateTemplate(targetFile, TemplateClient, path, pd)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 			return nil
 		})
 		if err != nil {
-			fmt.Printf("error walking the path %q: %v\n", tmpDir, err)
+			log.Errorf("error walking the path %q: %v", tmpDir, err)
 			return
 		}
 
@@ -116,7 +115,7 @@ var clientCmd = &cobra.Command{
 				return
 			}
 			log.Info("generating protobuf file")
-			err = GenerateProtobuf(pd, baseDir, needGenGrpcPb)
+			err = GenerateProtobuf(pd, clientRootDir, needGenGrpcPb)
 			if err != nil {
 				log.Error(err)
 				return
@@ -131,7 +130,7 @@ var clientCmd = &cobra.Command{
 
 		// inject tag
 		{
-			pbFilepath := filepath.Join(absPath, fmt.Sprintf("%s.pb.go", pd.PackageName))
+			pbFilepath := filepath.Join(clientRootDir, fmt.Sprintf("%s.pb.go", serviceName))
 			areas, err := parser.ParsePbFile(pbFilepath, nil, nil)
 			if err != nil {
 				log.Fatal(err)
@@ -166,42 +165,86 @@ func checkProtoc() bool {
 func GenerateProtobuf(pd *parser.ParseData, basePath string, needGenGrpcPb bool) error {
 	var err error
 	var args []string
-	var protocName string
-	var protoGenGoName string
-	switch runtime.GOOS {
-	case "windows":
-		protocName = "protoc.exe"
-		protoGenGoName = "protoc-gen-go.exe"
-	default:
-		protocName = "protoc"
-		protoGenGoName = "protoc-gen-go"
-	}
+	//var protocName string
+	//var protoGenGoName string
+	//switch runtime.GOOS {
+	//case "windows":
+	//	//protocName = "protoc.exe"
+	//	protoGenGoName = "protoc-gen-go.exe"
+	//default:
+	//	//protocName = "protoc"
+	//	protoGenGoName = "protoc-gen-go"
+	//}
 	goPath := os.Getenv("GOPATH")
 	if goPath == "" {
 		goPath = build.Default.GOPATH
 	}
-	protoGenGoPath := filepath.ToSlash(filepath.Join(goPath, "bin", protoGenGoName))
-	args = append(args, fmt.Sprintf("--plugin=protoc-gen-go=%s", protoGenGoPath))
-	args = append(args, fmt.Sprintf("--go_out=%s", filepath.ToSlash(basePath)))
-	args = append(args, fmt.Sprintf("--go-http_out=%s", filepath.ToSlash(basePath)))
-	args = append(args, fmt.Sprintf("--validate_out=lang=go:%s", filepath.ToSlash(basePath)))
-	args = append(args, fmt.Sprintf("--openapi_out=%s", filepath.ToSlash(basePath)))
-	if needGenGrpcPb {
-		args = append(args, fmt.Sprintf("--go-grpc_out=%s", filepath.ToSlash(basePath)))
+	for _, x := range []string{"protoc-gen-go", "protoc-gen-go-grpc", "protoc-gen-go-http", "protoc-gen-validate", "protoc-gen-openapi"} {
+		protocBin := filepath.Join("exec", "bin", x)
+		protocBinPath := filepath.Join(goPath, "bin", x)
+		if err := extractFile(protocBin, protocBinPath); err != nil {
+			panic(err)
+		}
 	}
 
+	//protoGenGoPath := filepath.ToSlash(filepath.Join(goPath, "bin", protoGenGoName))
+	//args = append(args, fmt.Sprintf("--plugin=protoc-gen-go=%s", protoGenGoPath))
+	//args = append(args, fmt.Sprintf("--go_out=%s", filepath.ToSlash(basePath)))
+	//args = append(args, fmt.Sprintf("--go-http_out=%s", filepath.ToSlash(basePath)))
+	//args = append(args, fmt.Sprintf("--validate_out=lang=go:%s", filepath.ToSlash(basePath)))
+	//args = append(args, fmt.Sprintf("--openapi_out=%s", filepath.ToSlash(basePath)))
+	//if needGenGrpcPb {
+	//	args = append(args, fmt.Sprintf("--go-grpc_out=%s", filepath.ToSlash(basePath)))
+	//}
+	inputExt := []string{
+		"--go_out=.",
+		"--go-grpc_out=.",
+		"--go-http_out=.",
+		"--validate_out=lang=go:.",
+		//"--openapi_out=.",
+		fmt.Sprintf("--openapi_out=%s", filepath.ToSlash(basePath)),
+	}
+	args = append(args, inputExt...)
 	// include proto
-	includePaths := getIncludePathList()
-	for _, x := range includePaths {
-		args = append(args, fmt.Sprintf("--proto_path=%s", x))
+	//includePaths := getIncludePathList()
+	//for _, x := range includePaths {
+	//	args = append(args, fmt.Sprintf("--proto_path=%s", x))
+	//}
+
+	// 提取嵌入的protoc执行文件
+	protocBin := "exec/protoc"
+	protocBinPath := filepath.Join(os.TempDir(), "protoc")
+	if err := extractFile(protocBin, protocBinPath); err != nil {
+		panic(err)
 	}
 
+	// 赋予执行权限
+	if err := os.Chmod(protocBinPath, 0755); err != nil {
+		panic(err)
+	}
+
+	// 生成Proto文件的命令，假设您想生成go文件
+	tempDir := os.TempDir()
+	protosDir := filepath.Join(tempDir, "protos")
+	//googleProtoDir := filepath.Join(tempDir, "google")
+
+	if err := extractDirectory("protos", protosDir, ProtoFiles); err != nil {
+		log.Error(err)
+		return err
+	}
+	//protosDir := "protos"
+	args = append(args, fmt.Sprintf("--proto_path=%s", protosDir))
 	protoDir, protoName := filepath.Split(pd.FilePath)
 	args = append(args, fmt.Sprintf("-I=%s", protoDir), protoName)
+	cmd := exec.Command(protocBinPath, args...)
+	cmd.Dir = "." // 设置工作目录
+
+	// 设置环境变量，以便protoc找到所需的插件
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH"))
 
 	// protocPath := filepath.ToSlash(filepath.Join(goPath, "bin", protocName))
 	// cmd := exec.Command(protocPath, args...)
-	cmd := exec.Command(protocName, args...)
+	//cmd := exec.Command(protocName, args...)
 	log.Info("exec:", cmd.String())
 
 	var outBuf, errBuf bytes.Buffer
@@ -226,4 +269,74 @@ func GenerateProtobuf(pd *parser.ParseData, basePath string, needGenGrpcPb bool)
 
 func getIncludePathList() []string {
 	return config.GlobalConfig.AllProtoPathList
+}
+
+func extractFile(src, dst string) error {
+	if util.IsFileExist(dst) {
+		log.Warn("file is exist: ", dst)
+		return nil
+	}
+	srcFile, err := ExecFiles.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func extractDirectory(src, dst string, fs embed.FS) error {
+	files, err := fs.ReadDir(src)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			err = os.MkdirAll(filepath.Join(dst, file.Name()), os.ModePerm)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			err = extractDirectory(filepath.Join(src, file.Name()), filepath.Join(dst, file.Name()), fs)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			continue
+		}
+		srcFile, err := fs.Open(filepath.Join(src, file.Name()))
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.OpenFile(filepath.Join(dst, file.Name()), os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		defer dstFile.Close()
+
+		_, err = io.Copy(dstFile, srcFile)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+	}
+
+	return nil
 }

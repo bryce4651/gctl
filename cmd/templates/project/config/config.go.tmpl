@@ -1,0 +1,36 @@
+package config
+
+import (
+	"flag"
+)
+
+// Config contains the fields for running a server
+type Config struct {
+	EnableDebug bool
+	EnableHTTP  bool
+	EnableGRPC  bool
+	HTTPAddr    string
+	PprofAddr   string
+	GRPCAddr    string
+	TracerAddr  string
+
+	DbURI string
+}
+
+var GlobalConfig Config
+
+func InitConfig() error {
+	// NOTE: Flags have priority over Env vars.
+	flag.BoolVar(&GlobalConfig.EnableDebug, "debug", DefaultEnableDebug, "enable APIs for pprof")
+	flag.BoolVar(&GlobalConfig.EnableHTTP, "enable_http", DefaultEnableHTTP, "enable APIs for http")
+	flag.BoolVar(&GlobalConfig.EnableGRPC, "enable_grpc", DefaultEnableGRPC, "enable APIs for grpc")
+	flag.StringVar(&GlobalConfig.PprofAddr, "pprof_addr", DefaultPprofAddr, "Debug and metrics listen address")
+	flag.StringVar(&GlobalConfig.HTTPAddr, "http_addr", DefaultHTTPAddr, "HTTP listen address")
+	flag.StringVar(&GlobalConfig.GRPCAddr, "grpc_addr", DefaultGRPCAddr, "gRPC (HTTP) listen address")
+	flag.Parse()
+	return initEnv()
+}
+
+func SetConfig(cfg *Config) *Config {
+	return cfg
+}
