@@ -15,6 +15,7 @@ type ParseData struct {
 	EndErrCode   int
 	ModuleId     int
 	ModulePrefix string
+	ModulePath   string
 
 	// from proto file
 	FilePath         string

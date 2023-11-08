@@ -4,13 +4,13 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"git.csautodriver.com/base/gkit/errorx"
-	"git.csautodriver.com/base/gkit/log"
-	"git.csautodriver.com/base/gkit/pkg/env"
-	"git.csautodriver.com/base/gkit/transport/grpcx"
+	"github.com/ml444/gkit/errorx"
+	"github.com/ml444/gkit/log"
+	"github.com/ml444/gkit/pkg/env"
+	"github.com/ml444/gkit/transport/grpcx"
 
-	"git.csautodriver.com/ibms/spp/internal/hook"
-	"git.csautodriver.com/ibms/spp/internal/middleware"
+	"{{ .ModulePath }}/internal/hook"
+	"{{ .ModulePath }}/internal/middleware"
 	"{{.ServerImport}}server/app"
 	"{{.ServerImport}}server/config"
 

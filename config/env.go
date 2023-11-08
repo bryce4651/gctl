@@ -1,8 +1,9 @@
 package config
 
 import (
-	"github.com/spf13/viper"
 	"os"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -32,6 +33,8 @@ func init() {
 func SetDefaults() {
 	viper.SetDefault(KeyTargetRootPath, os.Getenv("HOME"))
 	viper.SetDefault(KeyOnceFiles, ".gitignore go.mod .editorconfig README.md Dockerfile Makefile")
+	viper.SetDefault(KeyModulePrefix, "gitlab.itcom888.com")
+	viper.SetDefault(KeyDefaultServiceGroup, "xops")
 	viper.SetDefault(KeySvcPortInterval, 5)
 	viper.SetDefault(KeyEnableAssignPort, false)
 	viper.SetDefault(KeySvcErrcodeInterval, 1000)

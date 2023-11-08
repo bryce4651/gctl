@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ml444/gctl/config"
@@ -27,7 +28,8 @@ var serverCmd = &cobra.Command{
 			return
 		}
 		if protoPath == "" {
-			protoPath = args[0]
+			arg := args[0]
+			protoPath = filepath.Join("pkg", args[0], fmt.Sprintf("%s.proto", arg))
 		}
 		if serviceGroup == "" && config.GlobalConfig.DefaultSvcGroup != "" {
 			serviceGroup = config.GlobalConfig.DefaultSvcGroup
@@ -46,7 +48,10 @@ var serverCmd = &cobra.Command{
 			log.Errorf("err: %v", err)
 			return
 		}
+		serverRootDir, _ := os.Getwd()
+		_, projectName := filepath.Split(serverRootDir)
 		pd.ModulePrefix = config.JoinModulePrefixWithGroup(serviceGroup)
+		pd.ModulePath = strings.Join([]string{pd.ModulePrefix, projectName}, "/")
 		if config.GlobalConfig.EnableAssignPort {
 			var port int
 			svcAssign := util.NewSvcAssign(serviceName, serviceGroup)
@@ -66,7 +71,6 @@ var serverCmd = &cobra.Command{
 		//protoTempPath := config.GetTempProtoAbsPath()
 		serverTempDir := "templates/server"
 		// serverRootDir := filepath.Join(baseDir, fmt.Sprintf("%sServer", strings.Split(pd.Options["go_package"], ";")[0]))
-		serverRootDir, _ := os.Getwd()
 		log.Debug("server root dir:", serverRootDir)
 		log.Debug("template root dir:", serverTempDir)
 		err = fs.WalkDir(TemplateServer, serverTempDir, func(path string, info fs.DirEntry, err error) error {
