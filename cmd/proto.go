@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ml444/gctl/config"
@@ -28,7 +31,9 @@ var protoCmd = &cobra.Command{
 			serviceGroup = config.GlobalConfig.DefaultSvcGroup
 		}
 		//modulePrefix := config.JoinModulePrefixWithGroup(serviceGroup)
-		targetFilepath := config.GetTargetProtoAbsPath(serviceGroup, protoName)
+		// targetFilepath := config.GetTargetProtoAbsPath(serviceGroup, protoName)
+		curDir, _ := os.Getwd()
+		targetFilepath := filepath.Join(curDir, "pkg", protoName, fmt.Sprintf("%s.proto", protoName))
 		if util.IsFileExist(targetFilepath) {
 			log.Errorf("%s is existed", targetFilepath)
 			return
@@ -60,7 +65,8 @@ var protoCmd = &cobra.Command{
 		err := parser.GenerateTemplate(
 			targetFilepath,
 			TemplateProto,
-			config.GetTempProtoAbsPath(),
+			strings.Join([]string{GetTemplateProtoDir(), config.TmplFilesConf.Template.ProtoFilename}, "/"),
+			// config.GetTempProtoAbsPath(),
 			pd,
 		)
 		if err != nil {
@@ -77,4 +83,12 @@ func validate(name string) bool {
 		return false
 	}
 	return true
+}
+
+func GetTemplateProtoDir() string {
+	var elems []string
+	elems = append(elems, "templates")
+	elems = append(elems, config.TmplFilesConf.Template.RelativeDir.Proto...)
+	// return filepath.Join(elems...)
+	return strings.Join(elems, "/")
 }
