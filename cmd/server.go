@@ -1,4 +1,4 @@
-d
+package cmd
 
 import (
 	"errors"
