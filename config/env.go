@@ -32,11 +32,14 @@ func init() {
 
 func SetDefaults() {
 	viper.SetDefault(KeyTargetRootPath, os.Getenv("HOME"))
-	viper.SetDefault(KeyOnceFiles, ".gitignore go.mod .editorconfig README.md Dockerfile Makefile")
+	viper.SetDefault(KeyOnceFiles, ".gitignore go.mod .editorconfig README.md Dockerfile Makefile transport.go")
 	viper.SetDefault(KeyModulePrefix, "gitlab.itcom888.com")
 	viper.SetDefault(KeyDefaultServiceGroup, "xops")
 	viper.SetDefault(KeySvcPortInterval, 5)
 	viper.SetDefault(KeyEnableAssignPort, false)
 	viper.SetDefault(KeySvcErrcodeInterval, 1000)
-	viper.SetDefault(KeyEnableAssignErrcode, false)
+	viper.SetDefault(KeyEnableAssignErrcode, true)
+	viper.SetDefault(KeyDefaultServiceGroup, "xops")
+	viper.SetDefault(KeySvcGroupInitErrcodeMap, `{"xops":100000}`)
+	viper.SetDefault(KeyDbDSN, "mysql://root:MysQLNF7o/mw2NF7o/mflsiXW59#&aB@tcp(172.31.140.11:3306)/xops-gctl-config")
 }
