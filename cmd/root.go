@@ -1,4 +1,4 @@
-package cmd
+d
 
 import (
 	"embed"
@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const PatternTemplate = "%[LevelName]s %[Message]v"
+
 //go:embed templates/config.yaml
 var TemplateConfig embed.FS
 
@@ -22,6 +24,9 @@ var TemplateClient embed.FS
 
 //go:embed templates/server/*
 var TemplateServer embed.FS
+
+//go:embed templates/project/*
+var TemplateProject embed.FS
 
 //go:embed templates/proto/*
 var TemplateProto embed.FS
@@ -79,7 +84,16 @@ func Execute() {
 		println(err.Error())
 		return
 	}
-
+	err = log.InitLog(
+		logConf.SetLevel2Logger(level.InfoLevel),
+		func(config *logConf.Config) {
+			config.Handler.LogHandlerConfig.Formatter.Text.PatternStyle = PatternTemplate
+		},
+	)
+	if err != nil {
+		println(err.Error())
+		return
+	}
 	if debug {
 		err = log.InitLog(logConf.SetLevel2Logger(level.DebugLevel))
 		if err != nil {
