@@ -76,13 +76,109 @@ func (s {{ $svcName }}) {{$v.Name}}(ctx context.Context, req *{{$pn}}.{{$v.Reque
 {{ end }}
 `
 
-func GenerateServiceMethodContent(pd *ParseData, funcMap template.FuncMap) ([]byte, error) {
+func GenerateServiceMethodContent(pd *ParseData) ([]byte, error) {
 
 	temp := template.New("svcMethodTemp")
 	if funcMap != nil {
 		temp.Funcs(funcMap)
 	}
 	temp, err := temp.Parse(svcMethodTemp)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	err = temp.Execute(&buffer, pd)
+	if err != nil {
+		log.Printf("Can't generate file content,Error :%v\n", err)
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+var daoTemp = `
+{{$pn := .PackageName}}
+func init() {
+	db.RegisterModel(
+{{- range $i, $m := .ModelList -}}
+		&{{$pn}}.{{$m.Name}}{},
+{{- end -}}
+	)
+}
+
+{{ range $i, $m := .ModelList }}
+    {{$TModelName := TrimPrefix $m.Name "Model" }}
+    {{$cliModelName := Concat $pn "." $m.Name}}
+var db{{$TModelName}} = NewT{{$TModelName}}(db.Db())
+
+type T{{$TModelName}} struct {
+	db    *gorm.DB
+	model *{{$cliModelName}}
+}
+
+func NewT{{$TModelName}}(db *gorm.DB) *T{{$TModelName}} {
+	return &T{{$TModelName}}{
+		db:    db,
+		model: &{{$cliModelName}}{},
+	}
+}
+
+func (d *T{{$TModelName}}) newScope() *dbx.Scope {
+    if d.db == nil {
+		d.db = db.Db()
+	}
+	return dbx.NewScope(d.db, &{{$cliModelName}}{})
+}
+
+func (d *T{{$TModelName}}) Create(ctx context.Context, m *{{$cliModelName}}) error {
+	return d.newScope().Create(&m)
+}
+
+func (d *T{{$TModelName}}) Update(ctx context.Context, m interface{}, whereMap map[string]interface{}) error {
+	return d.newScope().Where(whereMap).Update(&m)
+}
+
+func (d *T{{$TModelName}}) DeleteById(ctx context.Context, pk uint64) error {
+	return d.newScope().Eq(dbId, pk).Delete()
+}
+
+func (d *T{{$TModelName}}) DeleteByWhere(ctx context.Context, whereMap map[string]interface{}) error {
+	return d.newScope().Where(whereMap).Delete()
+}
+
+func (d *T{{$TModelName}}) GetOne(ctx context.Context, pk uint64) (*{{$cliModelName}}, error) {
+	var m {{$cliModelName}}
+	err := d.newScope().SetNotFoundErr({{$pn}}.ErrNotFound{{$TModelName}}).First(&m, pk)
+	return &m, err
+}
+{{$sModelName := ToLowerFirst $TModelName}}
+{{$reqType := Concat "List" $TModelName "Req"}}
+func (d *T{{$TModelName}}) ListWithPaginate(ctx context.Context, listOption *listoption.Paginate, whereOpts interface{}) ([]*{{$cliModelName}}, *listoption.Paginate, error) {
+	var err error
+	scope := d.newScope().Where(whereOpts)
+	
+    var {{$sModelName}}List []*{{$cliModelName}}
+	var paginate *listoption.Paginate
+	paginate, err = scope.PaginateQuery(listOption, &{{$sModelName}}List )
+	if err != nil {
+		log.Errorf("err: %v", err)
+		return nil, nil, err
+	}
+
+	return {{$sModelName}}List , paginate, nil
+}
+
+{{end}}
+`
+
+func GenerateDAOContent(pd *ParseData) ([]byte, error) {
+
+	temp := template.New("daoTemp")
+	if funcMap != nil {
+		temp.Funcs(funcMap)
+	}
+	temp, err := temp.Parse(daoTemp)
 	if err != nil {
 		log.Error(err)
 		return nil, err
