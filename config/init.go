@@ -120,7 +120,7 @@ func InitGlobalVar(tfs embed.FS) error {
 		log.Error(err)
 		return err
 	}
-	//GlobalConfig.GoModulePrefix = viper.GetString(KeyModulePrefix)
+	GlobalConfig.GoModulePrefix = viper.GetString(KeyModulePrefix)
 	//if GlobalConfig.GoModulePrefix == "" {
 	//	fmt.Println(fmt.Sprintf("err: must be set: 'export GCTL_%s=your_repository_host'", KeyModulePrefix))
 	//	return errors.New(fmt.Sprintf("missing environment variable: GCTL_%s", KeyModulePrefix))
