@@ -1,10 +1,18 @@
 package cmd
 
 import (
+	"bytes"
+	"embed"
 	"fmt"
+	"go/build"
+	"io"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/ml444/gutil/osx"
 
 	"github.com/ml444/gctl/config"
 	"github.com/ml444/gctl/util"
@@ -15,80 +23,131 @@ import (
 	"github.com/ml444/gctl/parser"
 )
 
-var protoCmd = &cobra.Command{
-	Use:     "proto",
-	Short:   "init proto file",
-	Aliases: []string{"p"},
-	Run: func(cmd *cobra.Command, args []string) {
-		if protoName == "" {
-			log.Error("proto name must be input:[-n=xxx]")
+var clientCmd = &cobra.Command{
+	Use:     "client",
+	Short:   "Generate client lib",
+	Aliases: []string{"c"},
+	Run: func(_ *cobra.Command, args []string) {
+
+		if protoPath == "" && len(args) == 0 {
+			log.Error("You must provide the file of proto: gctl client -p=<protoFilepath> or gctl client <NAME>")
 			return
 		}
-		if !validate(protoName) {
-			return
-		}
-		if serviceGroup == "" {
+		if serviceGroup == "" && config.GlobalConfig.DefaultSvcGroup != "" {
 			serviceGroup = config.GlobalConfig.DefaultSvcGroup
 		}
-		//modulePrefix := config.JoinModulePrefixWithGroup(serviceGroup)
-		// targetFilepath := config.GetTargetProtoAbsPath(serviceGroup, protoName)
-		curDir, _ := os.Getwd()
-		targetFilepath := filepath.Join(curDir, "pkg", protoName, fmt.Sprintf("%s.proto", protoName))
-		if util.IsFileExist(targetFilepath) {
-			log.Errorf("%s is existed", targetFilepath)
+		//baseDir := config.GlobalConfig.TargetRootPath
+		if protoPath == "" {
+			arg := args[0]
+			protoPath = filepath.Join("pkg", args[0], fmt.Sprintf("%s.proto", arg))
+			//protoPath = config.GetTargetProtoAbsPath(serviceGroup, protoPath)
+			//protoPath = filepath.Join(baseDir, config.GlobalConfig.GoModulePrefix, fmt.Sprintf("%s.proto", arg))
+		}
+		//tmpDir := config.GetTempClientAbsDir()
+		tmpDir := "templates/client"
+		onceFiles := config.GlobalConfig.OnceFiles
+		//log.Debug("root location of code generation: ", baseDir)
+		log.Debug("template path of code generation: ", tmpDir)
+		log.Debug("files that are executed only once during initialization:", onceFiles)
+		onceFileMap := map[string]bool{}
+		for _, fileName := range onceFiles {
+			onceFileMap[fileName] = true
+		}
+		var err error
+		pd, err := parser.ParseProtoFile(protoPath)
+		if err != nil {
+			log.Errorf("err: %v", err)
 			return
 		}
-		pd := parser.ParseData{
-			PackageName:  protoName,
-			ModulePrefix: config.JoinModulePrefixWithGroup(serviceGroup),
-		}
-
-		var firstErrcode = 1
-		var endErrCode = 1 << 31
+		serviceName := getServiceName(protoPath)
 		if config.GlobalConfig.EnableAssignErrcode {
-			var err error
-			var errCode int
-			svcAssign := util.NewSvcAssign(protoName, serviceGroup)
-			err = svcAssign.GetOrAssignPortAndErrcode(nil, &errCode)
+			var moduleId int
+			svcAssign := util.NewSvcAssign(serviceName, serviceGroup)
+			moduleId, err = svcAssign.GetModuleId()
 			if err != nil {
 				log.Error(err)
 				return
 			}
-			if errCode != 0 {
-				firstErrcode = errCode
-				endErrCode = errCode + config.GlobalConfig.SvcErrcodeInterval - 1
-			}
+			pd.ModuleId = moduleId
 		}
-		pd.StartErrCode = firstErrcode
-		pd.EndErrCode = endErrCode
+		clientRootDir, _ := os.Getwd()
+		if pkgPath := pd.Options["go_package"]; pkgPath != "" {
+			if strings.Contains(pkgPath, ";") {
+				pkgPath = strings.Split(pkgPath, ";")[0]
+			}
+			clientRootDir = filepath.Join(clientRootDir, pkgPath)
+		} else {
+			//clientRootDir = config.GetTargetClientAbsDir(serviceGroup, serviceName)
+		}
+		err = fs.WalkDir(TemplateClient, tmpDir, func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				log.Errorf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
+				return err
+			}
+			if info.IsDir() {
+				log.Warnf("skipping dir: %+v \n", info.Name())
+				return nil
+			}
+			fileName := strings.TrimSuffix(info.Name(), config.GetTempFilesFormatSuffix())
+			parentPath := strings.TrimRight(strings.TrimPrefix(path, tmpDir), info.Name())
+			targetFile := clientRootDir + parentPath + fileName
+			if util.IsFileExist(targetFile) && onceFileMap[fileName] {
+				log.Warnf("[%s] file is exist in this directory, skip it", targetFile)
+				return nil
+			}
 
-		err := parser.GenerateTemplate(
-			targetFilepath,
-			TemplateProto,
-			strings.Join([]string{GetTemplateProtoDir(), config.TmplFilesConf.Template.ProtoFilename}, "/"),
-			// config.GetTempProtoAbsPath(),
-			pd,
-		)
+			log.Infof("generating file: %s \n", targetFile)
+			err = parser.GenerateTemplate(targetFile, TemplateClient, path, pd)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			return nil
+		})
 		if err != nil {
-			log.Error(err.Error())
+			log.Errorf("error walking the path %q: %v", tmpDir, err)
 			return
 		}
-		log.Info("generate proto file success: ", targetFilepath)
+
+		// generate protobuf file
+		{
+			if ok := checkProtoc(); !ok {
+				return
+			}
+			log.Info("generating protobuf file")
+			err = GenerateProtobuf(pd, clientRootDir, needGenGrpcPb)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+		}
+
+		absPath, err := filepath.Abs(clientRootDir)
+		if err != nil {
+			log.Errorf("err: %v", err)
+			return
+		}
+
+		// inject tag
+		{
+			pbFilepath := filepath.Join(clientRootDir, fmt.Sprintf("%s.pb.go", serviceName))
+			areas, err := parser.ParsePbFile(pbFilepath, nil, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err = parser.WritePbFile(pbFilepath, areas, false); err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		// go mod tidy && go fmt
+		if osx.IsFileExist(filepath.Join(absPath, "go.mod")) {
+			util.CmdExec("cd " + absPath + " && go mod tidy")
+		}
+		util.CmdExec("cd " + absPath + " && go fmt ./...")
 	},
 }
 
-func validate(name string) bool {
-	if strings.Contains(name, "-") {
-		log.Error("prohibited use of '-'")
-		return false
-	}
-	return true
-}
-
-func GetTemplateProtoDir() string {
-	var elems []string
-	elems = append(elems, "templates")
-	elems = append(elems, config.TmplFilesConf.Template.RelativeDir.Proto...)
-	// return filepath.Join(elems...)
-	return strings.Join(elems, "/")
-}
+func getServiceName(protoPath string) string {
+	_, fname := filepath.Split(protoPath)
+	return strings.TrimSuffix(fname, ".proto")
