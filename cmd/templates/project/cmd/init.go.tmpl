@@ -2,11 +2,11 @@ package main
 
 import (
     "github.com/ml444/gkit/log"
-	"github.com/ml444/gkit/tracing"
+	//"github.com/ml444/gkit/middleware/tracing"
 
 	"{{.ModulePath}}/internal/db"
 	"{{.ModulePath}}/pkg/{{.PackageName}}"
-	"{{.ServerImport}}server/config"
+	"{{.ModulePath}}/config"
 )
 
 func Init(cfg *config.Config) error {
@@ -20,29 +20,28 @@ func Init(cfg *config.Config) error {
     }
 
 	// setting logger
-	err = log.InitLogger({{.PackageName}}.ClientName, cfg.EnableDebug)
+	err = log.InitLogger({{.PackageName}}.ClientName, cfg.Debug)
     if err != nil {
         log.Errorf("err: %v", err)
         return err
     }
 
 	// init db
-	err = db.InitDB(cfg.DbURI, cfg.EnableDebug)
+	err = db.InitDB(cfg.DBCfg, cfg.Debug)
 	if err != nil {
 		log.Errorf("err: %v", err)
 		return err
 	}
 
 	// init tracer
-	err = tracing.InitTracer(cfg.TracerAddr, log.GetLoggerName())
-	if err != nil {
-		log.Errorf("err: %v", err)
-		return err
-	}
+	//err = tracing.InitTracer(cfg.TracerAddr, log.GetLoggerName())
+	//if err != nil {
+	//	log.Errorf("err: %v", err)
+	//	return err
+	//}
 
 
 
 	return nil
 }
-
 
