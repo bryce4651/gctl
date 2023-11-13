@@ -27,7 +27,7 @@ var clientCmd = &cobra.Command{
 	Use:     "client",
 	Short:   "Generate client lib",
 	Aliases: []string{"c"},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 
 		if protoPath == "" && len(args) == 0 {
 			log.Error("You must provide the file of proto: gctl client -p=<protoFilepath> or gctl client <NAME>")
@@ -38,7 +38,8 @@ var clientCmd = &cobra.Command{
 		}
 		//baseDir := config.GlobalConfig.TargetRootPath
 		if protoPath == "" {
-			protoPath = args[0]
+			arg := args[0]
+			protoPath = filepath.Join("pkg", args[0], fmt.Sprintf("%s.proto", arg))
 			//protoPath = config.GetTargetProtoAbsPath(serviceGroup, protoPath)
 			//protoPath = filepath.Join(baseDir, config.GlobalConfig.GoModulePrefix, fmt.Sprintf("%s.proto", arg))
 		}
@@ -87,7 +88,6 @@ var clientCmd = &cobra.Command{
 				log.Warnf("skipping dir: %+v \n", info.Name())
 				return nil
 			}
-			log.Warn(path, info.Name())
 			fileName := strings.TrimSuffix(info.Name(), config.GetTempFilesFormatSuffix())
 			parentPath := strings.TrimRight(strings.TrimPrefix(path, tmpDir), info.Name())
 			targetFile := clientRootDir + parentPath + fileName
@@ -143,8 +143,8 @@ var clientCmd = &cobra.Command{
 		// go mod tidy && go fmt
 		if osx.IsFileExist(filepath.Join(absPath, "go.mod")) {
 			util.CmdExec("cd " + absPath + " && go mod tidy")
-			util.CmdExec("cd " + absPath + " && go fmt ./...")
 		}
+		util.CmdExec("cd " + absPath + " && go fmt ./...")
 	},
 }
 
