@@ -6,29 +6,68 @@ import (
 
 // Config contains the fields for running a server
 type Config struct {
-	EnableDebug bool
-	EnableHTTP  bool
-	EnableGRPC  bool
-	HTTPAddr    string
-	PprofAddr   string
-	GRPCAddr    string
-	TracerAddr  string
-
-	DbURI string
+	Debug           bool              `mapstructure:"debug"`
+	PProfCfg        *PProfCfg         `mapstructure:"pprof_cfg"`
+	HTTPCfg         *HTTPCfg          `mapstructure:"http_cfg"`
+	GrpcCfg         *GrpcCfg          `mapstructure:"grpc_cfg"`
+	DBCfg           *DBCfg            `mapstructure:"db_cfg"`
 }
 
-var GlobalConfig Config
+type PProfCfg struct {
+	EnablePprof bool   `mapstructure:"enable_pprof"`
+	PprofAddr   string `mapstructure:"pprof_addr"`
+}
+
+type HTTPCfg struct {
+	EnableHTTP           bool   `mapstructure:"enable_http"`
+	HTTPAddr             string `mapstructure:"http_addr"`
+	Timeout              int    `mapstructure:"timeout"`
+	TLSCertFile          string `mapstructure:"tls_cert_file"`
+	TLSKeyFile           string `mapstructure:"tls_key_file"`
+	RouterPathPrefix     string `mapstructure:"router_path_prefix"`
+	RouterStrictSlash    bool   `mapstructure:"router_strict_slash"`
+	RouterSkipClean      bool   `mapstructure:"router_skip_clean"`
+	RouterUseEncodedPath bool   `mapstructure:"router_use_encoded_path"`
+}
+type GrpcCfg struct {
+	EnableGRPC   bool   `mapstructure:"enable_grpc"`
+	EnableHealth bool   `mapstructure:"enable_health"`
+	GRPCAddr     string `mapstructure:"grpc_addr"`
+	TLSCertFile  string `mapstructure:"tls_cert_file"`
+	TLSKeyFile   string `mapstructure:"tls_key_file"`
+}
+
+type DBCfg struct {
+	DBURI           string `mapstructure:"db_uri"`
+	ConnMaxLifeTime int    `mapstructure:"connmaxlifetime"` // 连接池中每个连接的最大生存时间，单位秒。
+	ConnMaxIdleTime int    `mapstructure:"connmaxidletime"` // 连接池中每个连接的最大空闲时间，单位秒。
+	MaxOpenConns    int    `mapstructure:"maxopenconns"`    // 连接池中允许同时打开的最大连接数
+	MaxIdleConns    int    `mapstructure:"maxidleconns"`    // 连接池中允许存在的最大空闲连接数
+}
+
+var GlobalConfig = &Config{
+	Debug:      false,
+	PProfCfg:   &PProfCfg{},
+	HTTPCfg:    &HTTPCfg{},
+	GrpcCfg:    &GrpcCfg{},
+	DBCfg:      &DBCfg{},
+}
 
 func InitConfig() error {
+    err := initEnv()
+    if err != nil {
+        return err
+    }
 	// NOTE: Flags have priority over Env vars.
-	flag.BoolVar(&GlobalConfig.EnableDebug, "debug", DefaultEnableDebug, "enable APIs for pprof")
-	flag.BoolVar(&GlobalConfig.EnableHTTP, "enable_http", DefaultEnableHTTP, "enable APIs for http")
-	flag.BoolVar(&GlobalConfig.EnableGRPC, "enable_grpc", DefaultEnableGRPC, "enable APIs for grpc")
-	flag.StringVar(&GlobalConfig.PprofAddr, "pprof_addr", DefaultPprofAddr, "Debug and metrics listen address")
-	flag.StringVar(&GlobalConfig.HTTPAddr, "http_addr", DefaultHTTPAddr, "HTTP listen address")
-	flag.StringVar(&GlobalConfig.GRPCAddr, "grpc_addr", DefaultGRPCAddr, "gRPC (HTTP) listen address")
-	flag.Parse()
-	return initEnv()
+	flag.BoolVar(&GlobalConfig.Debug, "debug", false, "enable APIs for pprof")
+	flag.BoolVar(&GlobalConfig.HTTPCfg.EnableHTTP, "enable_http", true, "enable APIs for http")
+	flag.BoolVar(&GlobalConfig.GrpcCfg.EnableGRPC, "enable_grpc", false, "enable APIs for grpc")
+	flag.BoolVar(&GlobalConfig.PProfCfg.EnablePprof, "enable_pprof", false, "enable APIs for pprof")
+	flag.StringVar(&GlobalConfig.HTTPCfg.HTTPAddr, "http_addr", ":5050", "HTTP listen address")
+	flag.StringVar(&GlobalConfig.GrpcCfg.GRPCAddr, "grpc_addr", ":5040", "gRPC listen address")
+	flag.StringVar(&GlobalConfig.PProfCfg.PprofAddr, "pprof_addr", ":5060", "pprof listen address")	
+    flag.Parse()
+	return nil
 }
 
 func SetConfig(cfg *Config) *Config {
