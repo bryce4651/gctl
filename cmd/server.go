@@ -276,13 +276,14 @@ var serverCmd = &cobra.Command{
 					}
 
 				}
+			} else {
+				log.Infof("generating file: %s", targetFile)
+				err = parser.GenerateTemplate(targetFile, TemplateServer, path, pd)
+				if err != nil {
+					return err
+				}
 			}
 
-			log.Infof("generating file: %s", targetFile)
-			err = parser.GenerateTemplate(targetFile, TemplateServer, path, pd)
-			if err != nil {
-				return err
-			}
 			return nil
 		})
 		if err != nil {
