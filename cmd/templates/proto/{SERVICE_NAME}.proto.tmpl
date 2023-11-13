@@ -2,44 +2,41 @@ syntax = "proto3";
 
 package {{ .PackageName }};
 
-option go_package = "{{ .ModulePrefix }}/pkg/{{ .ServiceName }}";
+option go_package = "./pkg/{{ .PackageName }}";
 
 import "validate/validate.proto";
 import "listoption/listoption.proto";
 import "google/api/annotations.proto";
 
-service {{ .ServiceName }} {
-	rpc Create{{.CaseServiceName}} (Create{{.CaseServiceName}}Req) returns (Create{{.CaseServiceName}}Rsp){
+{{ $caseServiceName := ToCamelCase .PackageName }}
+service {{ .PackageName }} {
+	rpc Create{{$caseServiceName}} (Create{{$caseServiceName}}Req) returns (Create{{$caseServiceName}}Rsp){
 	    option (google.api.http) = {
-	        post: "/{{ .PackageName }}/Create{{.CaseServiceName}}"
+	        post: "/v1/{{ .PackageName }}"
 	        body: "*"
 	    };
 	};
-	rpc Update{{.CaseServiceName}} (Update{{.CaseServiceName}}Req) returns (Update{{.CaseServiceName}}Rsp){
+	rpc Update{{$caseServiceName}} (Update{{$caseServiceName}}Req) returns (Update{{$caseServiceName}}Rsp){
 	    option (google.api.http) = {
-            post: "/{{ .PackageName }}/Update{{.CaseServiceName}}"
+            put: "/v1/{{ .PackageName }}/Update{{$caseServiceName}}"
             body: "*"
         };
 	};
-	rpc Delete{{.CaseServiceName}} (Delete{{.CaseServiceName}}Req) returns (Delete{{.CaseServiceName}}Rsp){
+	rpc Delete{{$caseServiceName}} (Delete{{$caseServiceName}}Req) returns (Delete{{$caseServiceName}}Rsp){
 	    option (google.api.http) = {
-            post: "/{{ .PackageName }}/Delete{{.CaseServiceName}}"
-            body: "*"
+            delete: "/v1/{{ .PackageName }}/{id}"
         };
 	};
-	rpc Get{{.CaseServiceName}} (Get{{.CaseServiceName}}Req) returns (Get{{.CaseServiceName}}Rsp){
+	rpc Get{{$caseServiceName}} (Get{{$caseServiceName}}Req) returns (Get{{$caseServiceName}}Rsp){
 	    option (google.api.http) = {
-            post: "/{{ .PackageName }}/Get{{.CaseServiceName}}"
-            body: "*"
+            get: "/v1/{{ .PackageName }}/{id}"
         };
 	};
-	rpc List{{.CaseServiceName}} (List{{.CaseServiceName}}Req) returns (List{{.CaseServiceName}}Rsp){
+	rpc List{{$caseServiceName}} (List{{$caseServiceName}}Req) returns (List{{$caseServiceName}}Rsp){
 	     option (google.api.http) = {
-            post: "/{{ .PackageName }}/List{{.CaseServiceName}}"
-            body: "*"
+            get: "/v1/{{ .PackageName }}"
         };
 	};
-	rpc List{{.CaseServiceName}}Sys (List{{.CaseServiceName}}SysReq) returns (List{{.CaseServiceName}}SysRsp);
 }
 
 // range of error codes: [{{.StartErrCode}}, {{.EndErrCode}}]
@@ -50,71 +47,61 @@ enum ErrCode {
     //@status_code: 400
     ErrParamRequired = {{Add .StartErrCode 1}}; // 缺失参数
     //@status_code: 404
-    ErrNotFound{{.CaseServiceName}} = {{Add .StartErrCode 2}}; // 未找到相关记录
+    ErrNotFound{{$caseServiceName}} = {{Add .StartErrCode 2}}; // 未找到相关记录
 }
 
-message Model{{.CaseServiceName}} {
+// GORM 索引使用示例: 
+// @gorm: type:json;index:idx_ct_xx,priority:1;comment:'xxxx'
+// @gorm: type:varchar(255);uniqueIndex:uidx_phone,sort:desc;comment:'phone number'
+
+
+message Model{{$caseServiceName}} {
     // @gorm: primarykey
     uint64 id = 1;
-    // @gorm: comment:'企业ID'
-    uint64 corp_id = 2;
     // @gorm: comment:'创建时间'
-    uint32 created_at = 3;
+    uint32 created_at = 101;
     // @gorm: comment:'更新时间'
-    uint32 updated_at = 4;
+    uint32 updated_at = 102;
     // @gorm: comment:'删除时间'
-    uint32 deleted_at = 5;
+    uint32 deleted_at = 103;
 }
 
-message Create{{.CaseServiceName}}Req {
-    Model{{.CaseServiceName}} data = 1 [(validate.rules).message.required = true];
+message Create{{$caseServiceName}}Req {
+    Model{{$caseServiceName}} data = 1 [(validate.rules).message.required = true];
 }
-message Create{{.CaseServiceName}}Rsp {
-    Model{{.CaseServiceName}} data = 1;
-}
-
-message Update{{.CaseServiceName}}Req {
-    Model{{.CaseServiceName}} data = 1 [(validate.rules).message.required = true];
-}
-message Update{{.CaseServiceName}}Rsp {
-    Model{{.CaseServiceName}} data = 1;
+message Create{{$caseServiceName}}Rsp {
+    Model{{$caseServiceName}} data = 1;
 }
 
-message Delete{{.CaseServiceName}}Req {
-    repeated uint64 id_list = 1 [(validate.rules).repeated.min_items = 1];
+message Update{{$caseServiceName}}Req {
+    uint64 id = 1 [(validate.rules).uint64.gt = 0];
+    Model{{$caseServiceName}} data = 2 [(validate.rules).message.required = true];
 }
-message Delete{{.CaseServiceName}}Rsp {}
+message Update{{$caseServiceName}}Rsp {
+    Model{{$caseServiceName}} data = 1;
+}
 
-message Get{{.CaseServiceName}}Req {
+message Delete{{$caseServiceName}}Req {
+    uint64 id = 1 [(validate.rules).uint64.gte = 1];
+    // repeated uint64 id_list = 2 [(validate.rules).repeated.min_items = 1];
+}
+message Delete{{$caseServiceName}}Rsp {}
+
+message Get{{$caseServiceName}}Req {
     uint64 id = 1 [(validate.rules).uint64.gt = 0];
 }
-message Get{{.CaseServiceName}}Rsp {
-    Model{{.CaseServiceName}} data = 1;
+message Get{{$caseServiceName}}Rsp {
+    Model{{$caseServiceName}} data = 1;
 }
 
-message List{{.CaseServiceName}}Req {
-    // @ref_to: List{{.CaseServiceName}}SysReq.ListOpt
-	listoption.ListOption list_option = 1;
-
-	repeated option.Option options = 2;
+message List{{$caseServiceName}}Req {
+    repeated uint64 id_list = 1;
+    optional string name = 2;
+    listoption.Paginate paginate = 3;
 }
-message List{{.CaseServiceName}}Rsp {
+message List{{$caseServiceName}}Rsp {
     listoption.Paginate paginate = 1;
-    repeated Model{{.CaseServiceName}} list = 2;
-
-    // 如果有多余的返回，请配合options使用
+    repeated Model{{$caseServiceName}} list = 2;
 }
 
-message List{{.CaseServiceName}}SysReq {
-    enum ListOpt {
-		ListOptNil = 0;
-        // @ref_to: listoption.GeneralListOpt
 
-	}
-	listoption.ListOption list_option = 1;
-	uint64 corp_id = 2 [(validate.rules).uint64.gt = 0];
-}
-message List{{.CaseServiceName}}SysRsp {
-    listoption.Paginate paginate = 1;
-    repeated Model{{.CaseServiceName}} list = 2;
-}
