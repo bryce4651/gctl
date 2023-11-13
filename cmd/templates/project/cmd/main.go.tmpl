@@ -1,18 +1,20 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"github.com/ml444/gkit/errorx"
 	"github.com/ml444/gkit/log"
 	"github.com/ml444/gkit/pkg/env"
 	"github.com/ml444/gkit/transport/grpcx"
 
+	"{{.ModulePath}}/config"
 	"{{ .ModulePath }}/internal/hook"
 	"{{ .ModulePath }}/internal/middleware"
-	"{{.ServerImport}}server/app"
-	"{{.ServerImport}}server/config"
+	"{{.ServerImport}}"
 
 	"{{.ClientImport}}"
 )
@@ -29,9 +31,9 @@ func Run(cfg *config.Config) {
 	go hook.InterruptHandler(errCh)
 
 	// Debug pprof listener.
-    if cfg.EnableDebug {
+    if pcfg := cfg.PProfCfg; pcfg != nil && pcfg.EnablePprof {
 		go func() {
-			log.Info("transport pprof addr", cfg.PprofAddr)
+			log.Info("transport pprof addr", pcfg.PprofAddr)
 
 			m := http.NewServeMux()
 			m.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
@@ -40,28 +42,37 @@ func Run(cfg *config.Config) {
 			m.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 			m.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 
-			errCh <- http.ListenAndServe(cfg.PprofAddr, m)
+			errCh <- http.ListenAndServe(pcfg.PprofAddr, m)
 		}()
 	}
 
 	// HTTP transport.
-	if cfg.EnableHTTP {
+	if hcfg := cfg.HTTPCfg; hcfg != nil && hcfg.EnableHTTP {
 		go func() {
-			log.Info("transport HTTP addr", cfg.HTTPAddr)
-			h := app.MakeHTTPHandler()
-			errCh <- http.ListenAndServe(cfg.HTTPAddr, h)
-		}()
+			log.Info("transport HTTP addr", hcfg.HTTPAddr)
+			srv := httpx.NewServer(
+				httpx.Timeout(time.Duration(hcfg.Timeout)*time.Millisecond),
+				httpx.Address(hcfg.HTTPAddr),
+			)
+			{{.PackageName}}server.RegisterServerWithHTTP(srv)
+			ctx := context.Background()
+			if err = srv.Start(ctx); err != nil {
+				log.Error(err.Error())
+				errCh <- err
+				return
+			}		
+        }()
 	}
 
 	// gRPC transport.
 	var grpcServer *grpcx.Server
-	if cfg.EnableGRPC {
+	if gcfg := cfg.GrpcCfg; gcfg != nil && gcfg.EnableGRPC {
 		go func() {
-			log.Info("transport gRPC addr", cfg.GRPCAddr)
+			log.Info("transport gRPC addr", gcfg.GRPCAddr)
 			grpcServer = grpcx.NewServer(
-				app.RegisterServerToGRPC,
+				{{.PackageName}}server.RegisterServerWithGRPC,
 				grpcx.Name({{.PackageName}}.ClientName),
-				grpcx.Address(cfg.GRPCAddr),
+				grpcx.Address(gcfg.GRPCAddr),
 				grpcx.UnaryInterceptor(middleware.InterceptorList...),
 				//grpcx.Credentials(insecure.NewCredentials()),
 			)
@@ -85,7 +96,7 @@ func Run(cfg *config.Config) {
 }
 
 func main() {
-	cfg := config.SetConfig(&config.GlobalConfig)
+	cfg := config.SetConfig(config.GlobalConfig)
 	errorx.RegisterError({{.PackageName}}.ErrCodeMap, {{.PackageName}}.ErrCode4StatusCodeMap)
 
     // init
@@ -99,4 +110,3 @@ func main() {
 
 	Run(cfg)
 }
-
