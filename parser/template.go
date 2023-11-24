@@ -110,7 +110,7 @@ func init() {
 {{ range $i, $m := .ModelList }}
     {{$TModelName := TrimPrefix $m.Name "Model" }}
     {{$cliModelName := Concat $pn "." $m.Name}}
-var db{{$TModelName}} = NewT{{$TModelName}}(db.Db())
+var db{{$TModelName}} = NewT{{$TModelName}}(db.DB())
 
 type T{{$TModelName}} struct {
 	db    *gorm.DB
@@ -126,7 +126,7 @@ func NewT{{$TModelName}}(db *gorm.DB) *T{{$TModelName}} {
 
 func (d *T{{$TModelName}}) newScope() *dbx.Scope {
     if d.db == nil {
-		d.db = db.Db()
+		d.db = db.DB()
 	}
 	return dbx.NewScope(d.db, &{{$cliModelName}}{})
 }
