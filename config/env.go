@@ -41,5 +41,5 @@ func SetDefaults() {
 	viper.SetDefault(KeyEnableAssignErrcode, true)
 	viper.SetDefault(KeyDefaultServiceGroup, "xops")
 	viper.SetDefault(KeySvcGroupInitErrcodeMap, `{"xops":100000}`)
-	viper.SetDefault(KeyDbDSN, "mysql://root:MysQLNF7o/mw2NF7o/mflsiXW59#&aB@tcp(172.31.140.11:3306)/xops-gctl-config")
+	viper.SetDefault(KeyDbDSN, "mysql://root:xxx@tcp(172.31.140.11:3306)/xops-gctl-config")
 }
