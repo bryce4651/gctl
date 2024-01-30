@@ -76,8 +76,6 @@ var clientCmd = &cobra.Command{
 				pkgPath = strings.Split(pkgPath, ";")[0]
 			}
 			clientRootDir = filepath.Join(clientRootDir, pkgPath)
-		} else {
-			//clientRootDir = config.GetTargetClientAbsDir(serviceGroup, serviceName)
 		}
 		err = fs.WalkDir(TemplateClient, tmpDir, func(path string, info fs.DirEntry, err error) error {
 			if err != nil {
@@ -197,11 +195,15 @@ func GenerateProtobuf(pd *parser.ParseData, basePath string, needGenGrpcPb bool)
 	//	args = append(args, fmt.Sprintf("--go-grpc_out=%s", filepath.ToSlash(basePath)))
 	//}
 	inputExt := []string{
+		// "--go_out=paths=source_relative:.",
 		"--go_out=.",
 		"--go-grpc_out=.",
 		"--go-http_out=.",
-		"--validate_out=lang=go:.",
+		// "--validate_out=lang=go:.",
 		//"--openapi_out=.",
+		"--go-validate_out=.",
+		"--go-errcode_out=.",
+		"--go-gorm_out=.",
 		fmt.Sprintf("--openapi_out=%s", filepath.ToSlash(basePath)),
 	}
 	args = append(args, inputExt...)

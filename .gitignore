@@ -19,7 +19,6 @@
 .idea/
 go.sum
 
-*.proto
 
 gctl
 misc/
