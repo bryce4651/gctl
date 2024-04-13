@@ -242,6 +242,7 @@ func GenerateProtobuf(pd *parser.ParseData, basePath string, needGenGrpcPb bool)
 	cmd.Dir = "." // 设置工作目录
 
 	// 设置环境变量，以便protoc找到所需的插件
+
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH"))
 
 	// protocPath := filepath.ToSlash(filepath.Join(goPath, "bin", protocName))
